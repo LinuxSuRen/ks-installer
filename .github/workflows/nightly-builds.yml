@@ -12,18 +12,22 @@ env:
   IMAGE_NAME: ks-installer
   IMAGE_REPO: kubespheredev
   IMAGE_VERSION: latest
+  CUSTOM_IMAGE_REPO: ${{ secrets.CUSTOM_IMAGE_REPO }}
 
 jobs:
   push:
     runs-on: ubuntu-latest
-    if: github.repository	== 'kubesphere/ks-installer'
+    if: ${{ github.repository	== 'kubesphere/ks-installer' || CUSTOM_IMAGE_REPO != '' }}
     steps:
       - uses: actions/checkout@v2
 
       - name: Build image
         run: |
           tag=nightly-$(date '+%Y%m%d')
-          sed -i "/ks_image_tag/s/\:.*/\: $tag/g" roles/download/defaults/main.yml 
+          sed -i "/ks_image_tag/s/\:.*/\: $tag/g" roles/download/defaults/main.yml
+          sed -i "/ks_version/s/\:.*/\: $tag/g" roles/download/defaults/main.yml
+          sed -i "/ks_version/s/\:.*/\: $tag/g" roles/ks-core/ks-core/defaults/main.yaml
+          sed -i "/ks_version/s/\:.*/\: $tag/g" roles/ks-core/prepare/defaults/main.yaml
           docker build . --file Dockerfile --tag $IMAGE_NAME
 
       - name: Log into registry
@@ -31,6 +35,10 @@ jobs:
 
       - name: Push image
         run: |
+          if [[ "${{ secrets.CUSTOM_IMAGE_REPO }}" != "" ]];
+          then
+            IMAGE_REPO=${{ secrets.CUSTOM_IMAGE_REPO }}
+          fi
           IMAGE_ID=$IMAGE_REPO/$IMAGE_NAME
           
           tag=nightly-$(date '+%Y%m%d')
@@ -45,4 +53,4 @@ jobs:
         with:
           status: ${{ job.status }}
           fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
-        if: always()
+        if: github.repository	== 'kubesphere/ks-installer'
